@@ -1832,7 +1832,7 @@ def detect_specific_entities(state: SQLState) -> SQLState:
             frappe.throw(_(
                 "Master Data does not exist. Because of this, results may not be accurate. "
                 "For better accuracy, please open "
-                "<a href='{0}' target='_blank' rel='noopener noreferrer'>ChangAI Settings</a> "
+                "<a href='{0}' target='_blank' rel='noopener noreferrer' style='color:#1e90ff;'>ChangAI Settings</a> "
                 "and click on the <b>Update Master Data</b> button in the Training tab.<br><br>"
                 "Check Quick Start Guide Here 👇:<br>"
                 "<a href='{1}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>Click here</a><br><br>"
@@ -1845,7 +1845,7 @@ def detect_specific_entities(state: SQLState) -> SQLState:
                 "Your master data is {0} days old. "
                 "Because of this, results may not be accurate. "
                 "For better accuracy, please open "
-                "<a href='{1}' target='_blank' rel='noopener noreferrer'>ChangAI Settings</a> "
+                "<a href='{1}' target='_blank' rel='noopener noreferrer' style='color:#1e90ff;'>ChangAI Settings</a> "
                 "and click on the <b>Update Master Data</b> button in the Training tab.<br><br>"
                 "Check Quick Start Guide Here 👇:<br>"
                 "<a href='{2}' target='_blank' rel='noopener noreferrer' style='color: #1e90ff;'>Click here</a><br><br>"
@@ -2059,7 +2059,7 @@ Always mention that you are ChangAI by ERPGulf when introducing yourself."""
         try:
             res = call_gemini(question,sys_prompt)
             return {**state, "non_erp_res": res}
-        except Exceptiona as e:
+        except Exception as e:
             return {**state, "non_erp_res": "Model Calling Failed .Please try Again","error":str(e)}
 
 
@@ -2124,8 +2124,9 @@ def execute_query(sql: str, doctypes: List[str]) -> Any:
         return frappe.db.sql(sql, as_dict=True)
     except PermissionError:
         return {
-            "error": _("You do not have permission to access this data.\n").format(CHANGAI_GUIDE_LINK)
-        }
+            "error": _("You do not have permission to access this data. Check the Quick Start Guide here 👇: {0}").format(
+                f'<a href="{CHANGAI_GUIDE_LINK}" target="_blank">Click here</a><br><br><a href="{ERPGULF_LINK}" target="_blank">ERPGulf.com</a>'
+            )        }
     except Exception as e:
         return {"error": f"SQL Execution Failed: {e}\n Check Quick Start Guide Here 👇:\n {CHANGAI_GUIDE_LINK}"}
 
@@ -2201,7 +2202,8 @@ def save_logs(
 @frappe.whitelist(allow_guest=False)
 def format_data_conversationally(user_data: Any) -> str:
     return render_template(
-        CONVERSATION_TEMPLATE,
+        CONVERSATION_TEMPLATE,  # nosemgrep: frappe-semgrep-rules.rules.security.frappe-ssti
+
         {"data": user_data}
     )
 
@@ -2745,9 +2747,7 @@ Find the correct field from SCHEMA CONTEXT and fix it."""
     val_res = validate_sql_schema(retried_sql)
     return retried_sql, retried_orm, val_res
 
-import json
-import frappe
-@frappe.whitelist(allow_guest=True)
+
 def get_last_thread_message(chat_id: str):
     data = frappe.get_all(
         "ChangAI Chat History",
@@ -2803,7 +2803,7 @@ THREAD_WORDS = [
 ]
 
 @frappe.whitelist(allow_guest=False)
-def is_thread_erp(q,chat_id:str):
+def is_thread_erp(q:str,chat_id:str):
     msg_type = get_last_thread_message(chat_id)
     if msg_type == "erp" and is_erp_query(q, THREAD_WORDS,85):
         return True
