@@ -2238,7 +2238,7 @@ CLOSING:
 Never list names or items in a comma-separated line. Ever.
 OUTPUT:
 - Markdown ALLOWED: **bold**, • bullets, emojis
-- i dont want too much gap between the texts shown.
+- i dont want too much gap between the texts also gaps are not allowed between items listed.
 - No JSON. No code blocks. No labels. No explanations.
 - Output ONLY the final user-facing answer. Nothing else.
 - if the user question is in english reply in english only very important.
