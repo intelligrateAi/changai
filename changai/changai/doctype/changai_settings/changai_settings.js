@@ -157,7 +157,7 @@ frappe.ui.form.on("ChangAI Settings", {
             },
             {
                 fieldname: "tts_provider",
-                text: "Choose the Text-to-Speech provider. Use Polly for high-quality AI voices with AWS Polly credentials, or Browser to use the device’s built-in speech engine."
+                text: "Choose the Text-to-Speech provider. Use Polly for high-quality AI voices with AWS Polly credentials; otherwise browser speech is used automatically"
                 ,
             }
 
