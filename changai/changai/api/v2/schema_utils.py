@@ -13,7 +13,6 @@ from frappe import _
 from pathlib import Path
 
 
-@frappe.whitelist(allow_guest=True)
 def word_match(entity_word,values):
     from changai.changai.api.v2.auto_gen_api import _read_filedoctype
     from changai.changai.api.v2.text2sql_pipeline_v2 import is_erp_query

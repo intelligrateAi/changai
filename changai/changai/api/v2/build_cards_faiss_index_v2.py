@@ -17,7 +17,8 @@ def get_app_fvs_base():
         frappe.get_app_path("changai"),
         "changai", "api", "v2", "fvs_stores", "erpnext"
     )
-@frappe.whitelist(allow_guest=True)
+
+
 def get_private_fvs_base():
     return frappe.get_site_path("private", "changai", "fvs_stores", "erpnext")
 
