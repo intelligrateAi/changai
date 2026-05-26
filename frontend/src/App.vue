@@ -2,7 +2,7 @@
 import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import ChatbotToggler from './components/ChatbotToggler.vue'
 import ChatbotPopup from './components/ChatbotPopup.vue'
-import { starupCall, runPipelineCancelable, callSupportBot, getSettingsDetails } from './utils/frappe.js'
+import { runPipelineCancelable, callSupportBotCancelable, getSettingsDetails } from './utils/frappe.js'
 import { getOrCreateChatId, getPollyPreference, setPollyPreference } from './utils/session.js'
 import { normalizeBotText, getErrorText, safeStringify } from './utils/helpers.js'
 const showChatbot = ref(false)
@@ -27,7 +27,9 @@ const ttsConfig = ref({
 })
 const activeTtsProvider = ref('off')
 const cancelPendingChatRequest = ref(null)
+const cancelPendingSupportRequest = ref(null)
 const isAwaitingChatResponse = computed(() => cancelPendingChatRequest.value !== null)
+const isAwaitingSupportResponse = computed(() => cancelPendingSupportRequest.value !== null)
 
 function updateProviderFromSettings() {
   if (!ttsConfig.value.enableVoiceChat) {
@@ -232,6 +234,11 @@ if (msg.done) {
 }
 
 function handleCancelResponse() {
+  if (activeTab.value === 'support') {
+    cancelPendingSupportRequest.value?.()
+    return
+  }
+
   cancelPendingChatRequest.value?.()
 }
 
@@ -245,12 +252,35 @@ async function handleSupportSubmit(message) {
   await nextTick()
   scrollToBottom()
 
+  let cancelled = false
+  const request = callSupportBotCancelable(message, responseMode.value)
+
+  cancelPendingSupportRequest.value = () => {
+    if (cancelled) return
+    cancelled = true
+    request.cancel()
+    thinkingMsg.isStatus = false
+    thinkingMsg.statusType = null
+    thinkingMsg.text = 'Cancelled by user.'
+    cancelPendingSupportRequest.value = null
+  }
+
   try {
-    const response = await callSupportBot(message, responseMode.value)
+    const response = await request.promise
+    if (cancelled) return
+    thinkingMsg.isStatus = false
+    thinkingMsg.statusType = null
     thinkingMsg.text = response ? safeStringify(response) : 'Support request sent successfully.'
   } catch (err) {
+    if (cancelled) return
     console.error('Support API Error:', err)
+    thinkingMsg.isStatus = false
+    thinkingMsg.statusType = null
     thinkingMsg.text = '⚠️ Failed to reach support. Please try again.'
+  } finally {
+    if (!cancelled) {
+      cancelPendingSupportRequest.value = null
+    }
   }
 
   await nextTick()
@@ -288,7 +318,8 @@ onBeforeUnmount(() => {
     :ttsConfig="ttsConfig"
     :activeTtsProvider="activeTtsProvider"
     :settings="settings"
-    :isAwaitingResponse="isAwaitingChatResponse"
+    :isAwaitingChatResponse="isAwaitingChatResponse"
+    :isAwaitingSupportResponse="isAwaitingSupportResponse"
     :debugEnabled="debugEnabled"
     :sendNonERPtoaiEnabled="sendNonERPtoaiEnabled"
     @toggleDebug="debugEnabled = !debugEnabled"
