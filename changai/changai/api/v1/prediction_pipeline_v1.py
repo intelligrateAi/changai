@@ -323,15 +323,27 @@ def fuzzy_intent_router(text: str) -> Dict[str, Any]:
     }
 
 
-@frappe.whitelist(allow_guest=False)
+from jinja2.sandbox import SandboxedEnvironment
+from markupsafe import escape
+
 def format_data_conversationally(user_data: Any, doctype: Optional[str] = None) -> str:
     """
-    Formats user data using the single, powerful conversational Jinja2 template.
+    Formats system-controlled user data using a sandboxed Jinja template.
     """
+
     if isinstance(user_data, dict) and user_data.get("success") is False:
-        return f":x: Error: {user_data.get('error', 'Unknown error')}"
-    env = jinja2.Environment(
-        trim_blocks=True, lstrip_blocks=True, extensions=["jinja2.ext.do"]
+        return f":x: Error: {escape(user_data.get('error', 'Unknown error'))}"
+
+    env = SandboxedEnvironment(
+        autoescape=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
+        extensions=["jinja2.ext.do"],
     )
+
     template = env.from_string(conversational_template)
-    return template.render(data=user_data, doctype=doctype)
+
+    return template.render(
+        data=user_data,
+        doctype=doctype
+    )

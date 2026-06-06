@@ -259,6 +259,7 @@ If you encounter any bugs, please report them on GitHub Issues https://github.co
 
 <div align="center">
 
+Please create issue on Github on any issues or feature requests. You can alway send email to support@erpgulf.com
 MIT License · Actively maintained · Built by [ERPGulf](https://erpgulf.com)
 
 </div>
