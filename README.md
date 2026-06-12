@@ -26,7 +26,7 @@ Open-source AI assistant for ERPNext. Ask business questions in plain English an
 - [Usage](#usage)
 - [How It Works](#how-it-works)
 - [FAQs](#faqs)
-- [Links](#links)
+
 
 
 ## Key Features
