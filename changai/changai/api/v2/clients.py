@@ -16,13 +16,83 @@ MODEL_ID = "gemini-2.5-flash-lite"
 STATUS_200 = 200
 
 
-def call_model(prompt: str, task: str = "llm",sys_prompt: str = "") -> Any:
+# === OLLAMA MOD START ===
+def call_ollama(prompt: str, sys_prompt: str = "") -> str:
+    """
+    Calls a local Ollama instance using the /api/chat endpoint.
+    Supports system prompts and returns cleaned text.
+    Mirrors the interface of call_gemini() so it can be a drop-in replacement.
+    """
+    config = ChangAIConfig.get()
+    base_url = (config.get("URL") or "http://localhost:11434").rstrip("/")
+    model_name = config.get("LOCAL_LLM") or "llama3.1:8b"
+
+    messages = []
+    if sys_prompt:
+        messages.append({"role": "system", "content": str(sys_prompt)})
+    messages.append({"role": "user", "content": str(prompt)})
+
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "stream": False,
+    }
+
+    try:
+        resp = _post_json(
+            url=f"{base_url}/api/chat",
+            headers={"Content-Type": APPLICATION_JSON},
+            payload=payload,
+            timeout=300,  # Local models can be slow on first load
+        )
+
+        if not resp.get("ok"):
+            error_detail = resp.get("body", {})
+            if isinstance(error_detail, dict) and "error" in error_detail:
+                err_msg = error_detail["error"]
+            else:
+                err_msg = str(error_detail)
+            frappe.log_error(
+                f"Ollama API Error:\nURL: {base_url}/api/chat\nModel: {model_name}\nError: {err_msg}",
+                "ChangAI Ollama Error"
+            )
+            return json.dumps({"error": f"Ollama call failed: {err_msg}"})
+
+        body = resp.get("body") or {}
+        text = body.get("message", {}).get("content", "")
+
+        if not text:
+            return json.dumps({"error": "Empty response from Ollama"})
+
+        # Clean markdown code blocks (same as Gemini cleanup)
+        text = _clean_gemini_response_text(text)
+
+        return text
+
+    except requests.exceptions.ConnectionError:
+        frappe.log_error(
+            f"Cannot connect to Ollama at {base_url}.\n"
+            f"Make sure Ollama is running and accessible from the Frappe server.",
+            "ChangAI Ollama Connection Error"
+        )
+        return json.dumps({"error": f"Cannot connect to Ollama at {base_url}. Is it running?"})
+    except Exception as e:
+        frappe.log_error(frappe.get_traceback(), "ChangAI Ollama Unexpected Error")
+        return json.dumps({"error": f"Ollama error: {str(e)}"})
+# === OLLAMA MOD END ===
+
+
+def call_model(prompt: str, task: str = "llm", sys_prompt: str = "") -> Any:
     config = ChangAIConfig.get()
     if config["REMOTE"] and config["llm"] == "QWEN3":
         return remote_llm_request_deploy_test(prompt=prompt, task=task)
+    # === OLLAMA MOD ===
+    elif config.get("llm") == "Ollama":
+        return call_ollama(prompt, sys_prompt)
+    # === END OLLAMA MOD ===
     else:
         if config["llm"] == "Gemini":
-            return call_gemini(prompt,sys_prompt)
+            return call_gemini(prompt, sys_prompt)
 
 
 def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeout: int = 120):
@@ -40,8 +110,6 @@ def _post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeo
         return {"ok": False, "status_code": None, "body": {"error": "timeout"}}
     except Exception as e:
         return {"ok": False, "status_code": None, "body": {"error": str(e)}}
-
-
 
 
 def local_llm_request(prompt: str) -> str:
@@ -85,7 +153,6 @@ def _throw_missing_vertex_field(project_id: str, location: str, credentials_json
 ).format(CHANGAI_GUIDE_LINK,settingsUrl,ERPGULF_LINK),
             title=_("Missing Service Account Credentials"),
         )
-
 
 
 def _get_api_key_client(config):
@@ -196,7 +263,6 @@ def gemini_client():
     return _GEMINI_CLIENT
 
 
-
 def _build_input_payload(task: str, prompt: str, question: Optional[str],
                           db_result_json: Optional[str], user_message: Optional[str]) -> Dict[str, Any]:
     if task == "format_db":
@@ -241,7 +307,6 @@ def _build_vertex_gemini_client(project_id: str, location: str, credentials_json
     )
 
 
-
 def remote_llm_request_deploy_test(
     prompt: str = "",
     task: str = "llm",
@@ -284,18 +349,17 @@ def remote_embedder_request(formatted_q: str) -> Union[List[Any], str]:
         return "Error: " + str(e)
 
 
-def call_model(prompt: str, task: str = "llm",sys_prompt: str = "") -> Any:
+def call_gemini(prompt: str, sys_prompt: str) -> Union[str, Dict[str, Any]]:
+    # === OLLAMA MOD ===
+    # Redirect to Ollama if configured as the LLM backend.
+    # This catches both call_model() routing AND direct call_gemini() calls
+    # in text2sql_pipeline_v2.py (create_entity, routeNonErpToAI, retry_sql).
     config = ChangAIConfig.get()
-    if config["REMOTE"] and config["llm"] == "QWEN3":
-        return remote_llm_request_deploy_test(prompt=prompt, task=task)
-    else:
-        if config["llm"] == "Gemini":
-            return call_gemini(prompt,sys_prompt)
+    if config.get("llm") == "Ollama":
+        return call_ollama(prompt, sys_prompt)
+    # === END OLLAMA MOD ===
 
-
-def call_gemini(prompt: str,sys_prompt: str) -> Union[str, Dict[str, Any]]:
     try:
-        # frappe.clear_document_cache(CHANGAI_SETTINGS)
         client = gemini_client()
 
         gemini_config = types.GenerateContentConfig(
